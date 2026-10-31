@@ -236,11 +236,17 @@ button.icon.spin svg { animation: spin .5s var(--ease); }
 /* aliments */
 .chips { display: flex; flex-wrap: wrap; gap: 7px; }
 .chip { font-family: var(--body); font-weight: 500; font-size: 14px; padding: 6px 13px; display: inline-flex; gap: 7px; align-items: center; border-color: rgba(255,255,255,.14); }
-.chip .ic { width: 12px; text-align: center; font-weight: 900; color: var(--faint); }
-.chip[data-p="1"] { background: var(--ink); color: #0a0a0a; border-color: var(--ink); }
-.chip[data-p="1"] .ic { color: #0a0a0a; }
-.chip[data-p="-1"] { color: var(--faint); border-style: dashed; text-decoration: line-through; }
-.chip[data-p="-1"] .ic { color: var(--bad); }
+.chip .ic { width: 14px; text-align: center; font-weight: 900; color: var(--muted); }
+/* goûts : couleurs pastel, texte foncé lisible */
+.chip[data-p="1"], .legend .k1 { background: #bfe9c8; color: #12391c; border-color: #bfe9c8; box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 4px 16px rgba(191,233,200,.18); }
+.chip[data-p="1"] .ic, .legend .k1 .ic { color: #1f7a38; }
+.chip[data-p="2"], .legend .k2 { background: linear-gradient(135deg, #fbe7a6, #f6cf7a); color: #4a3200; border-color: #f6d88c; box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 4px 18px rgba(246,207,122,.28); }
+.chip[data-p="2"] .ic, .legend .k2 .ic { color: #a86b00; }
+.chip[data-p="-1"], .legend .k3 { background: #f7c3c3; color: #4f1414; border-color: #f7c3c3; box-shadow: inset 0 1px 0 rgba(255,255,255,.6); }
+.chip[data-p="-1"] .ic, .legend .k3 .ic { color: #b3261e; }
+.legend .k { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-weight: 600; font-size: 12.5px; border: 1px solid rgba(255,255,255,.18); }
+.legend .k0 { color: var(--ink); }
+.meal li .lk.like { color: #9fdcae; } .meal li .lk.love { color: #f6cf7a; }
 .chip.pop { animation: pop .35s var(--ease); }
 @keyframes pop { 50% { transform: scale(1.1); } }
 .chip:disabled { opacity: .3; cursor: not-allowed; }
@@ -490,11 +496,12 @@ footer p { font-size: 12px; color: #6a6a6a; max-width: 72ch; }
   <!-- ALIMENTS -->
   <section class="view" id="v-aliments">
     <div class="vhead"><div class="eyebrow dim">tes goûts</div><h2 class="metal">Ce que tu aimes, ou pas</h2>
-      <div class="legend"><span>1 clic : <b>j'aime</b>, proposé plus souvent</span><span>2 clics : <b>je n'aime pas</b>, jamais proposé</span><span>3 clics : neutre</span></div></div>
+      <div class="legend"><span class="k k0"><span class="ic">+</span>neutre</span>→<span class="k k1"><span class="ic">♥</span>j'aime</span>→<span class="k k2"><span class="ic">★</span>j'adore</span>→<span class="k k3"><span class="ic">✕</span>je n'aime pas</span></div>
+      <p class="small muted">Touche un aliment pour changer. Les aliments adorés reviennent le plus souvent, les aimés un peu plus souvent, et ceux que tu n'aimes pas ne sont jamais proposés.</p></div>
     <div class="row spread">
       <div class="row">
         <input id="search" type="search" placeholder="Chercher un aliment" style="width:220px">
-        <select id="filterPref" aria-label="Filtrer" style="width:auto"><option value="all">Tous</option><option value="1">J'aime</option><option value="-1">Je n'aime pas</option></select>
+        <select id="filterPref" aria-label="Filtrer" style="width:auto"><option value="all">Tous</option><option value="2">J'adore</option><option value="1">J'aime</option><option value="-1">Je n'aime pas</option></select>
       </div>
       <span class="small muted" id="prefCount"></span>
     </div>
@@ -781,7 +788,7 @@ function pickFood(role, usage, dayUsed, exclude) {
   if (pool.length > lim) pool = pool.sort((a, b) => unitCost(a, role) - unitCost(b, role)).slice(0, lim);
   if (!pool.length) return null;
   const cheapest = Math.min(...pool.map(f => unitCost(f, role)));
-  const wts = pool.map(f => (state.prefs[f.id] === 1 ? 3 : 1) * Math.pow(MAIN_ROLES.has(role) ? 0.4 : 0.75, usage[f.id] || 0) * (dayUsed.has(f.id) ? 0.08 : 1) * Math.pow(cheapest / unitCost(f, role), priceBias));
+  const wts = pool.map(f => (state.prefs[f.id] === 2 ? 6 : state.prefs[f.id] === 1 ? 3 : 1) * Math.pow(MAIN_ROLES.has(role) ? 0.4 : 0.75, usage[f.id] || 0) * (dayUsed.has(f.id) ? 0.08 : 1) * Math.pow(cheapest / unitCost(f, role), priceBias));
   let r = Math.random() * wts.reduce((a,b) => a+b, 0);
   for (let i = 0; i < pool.length; i++) { r -= wts[i]; if (r <= 0) return pool[i]; }
   return pool[pool.length-1];
@@ -1233,7 +1240,7 @@ function renderRepas() {
     const enter = mealAnim === "all" || mealAnim === mi;
     return `<article class="card meal${enter ? " enter" : ""}" style="--i:${mealAnim === "all" ? mi : 0}">
       <header><h3>${MEAL_TYPES[m.type].label}</h3><span class="kc">${fmt(t.k)}<small>kcal</small></span></header>
-      <ul>${m.items.map((it, ii) => it.g <= 0 ? "" : `<li class="${lastSwapped === `${mi}:${ii}` ? "swapped" : ""}"><span>${F[it.id].n}${state.prefs[it.id] === 1 ? '<span class="lk" title="Tu aimes">♥</span>' : ""}</span><span class="g">${itemLabel(it)}</span><button class="icon" title="Remplacer ${F[it.id].n}" aria-label="Remplacer ${F[it.id].n}" data-swap="${mi}:${ii}">${SWAP_ICON}</button></li>`).join("")}</ul>
+      <ul>${m.items.map((it, ii) => it.g <= 0 ? "" : `<li class="${lastSwapped === `${mi}:${ii}` ? "swapped" : ""}"><span>${F[it.id].n}${state.prefs[it.id] === 2 ? '<span class="lk love" title="Tu adores">★</span>' : state.prefs[it.id] === 1 ? '<span class="lk like" title="Tu aimes">♥</span>' : ""}</span><span class="g">${itemLabel(it)}</span><button class="icon" title="Remplacer ${F[it.id].n}" aria-label="Remplacer ${F[it.id].n}" data-swap="${mi}:${ii}">${SWAP_ICON}</button></li>`).join("")}</ul>
       <div class="macros"><span><span class="dot p"></span>${fmt(t.p)} g prot.</span><span><span class="dot c"></span>${fmt(t.c)} g gluc.</span><span><span class="dot f"></span>${fmt(t.f)} g lip.</span></div>
       <div><button class="ghost" data-regen="${mi}">↻ Changer ce repas</button></div>
     </article>`;
@@ -1291,15 +1298,15 @@ function budgetNote() {
 function renderAliments(popId) {
   const norm = s => s.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
   const q = norm(ui.search.trim());
-  const likes = Object.values(state.prefs).filter(v => v === 1).length, dis = Object.values(state.prefs).filter(v => v === -1).length;
-  $("#prefCount").textContent = `${likes} aimé${likes > 1 ? "s" : ""} · ${dis} écarté${dis > 1 ? "s" : ""} · grisés = exclus par ton régime`;
+  const likes = Object.values(state.prefs).filter(v => v === 1).length, loves = Object.values(state.prefs).filter(v => v === 2).length, dis = Object.values(state.prefs).filter(v => v === -1).length;
+  $("#prefCount").textContent = `${loves} adoré${loves > 1 ? "s" : ""} · ${likes} aimé${likes > 1 ? "s" : ""} · ${dis} écarté${dis > 1 ? "s" : ""} · grisés = exclus par ton régime`;
   $("#foodGroups").innerHTML = CATS.map(([cat, label]) => {
     const foods = FOODS.filter(f => f.cat === cat && (!q || norm(f.n).includes(q)) && (ui.filter === "all" || String(state.prefs[f.id] || 0) === ui.filter));
     if (!foods.length) return "";
     return `<div class="card"><h3>${label}</h3><div class="chips">${foods.map(f => {
       const p = state.prefs[f.id] || 0, ok = allowed(f);
-      const st = p === 1 ? "j'aime" : p === -1 ? "je n'aime pas" : "neutre";
-      return `<button class="chip${popId === f.id ? " pop" : ""}" data-food="${f.id}" data-p="${p}" ${ok ? "" : "disabled"} aria-label="${f.n} : ${st}" title="${ok ? st : "exclu par ton régime"}"><span class="ic" aria-hidden="true">${p === 1 ? "♥" : p === -1 ? "✕" : "+"}</span>${f.n}</button>`;
+      const st = p === 2 ? "j'adore" : p === 1 ? "j'aime" : p === -1 ? "je n'aime pas" : "neutre";
+      return `<button class="chip${popId === f.id ? " pop" : ""}" data-food="${f.id}" data-p="${p}" ${ok ? "" : "disabled"} aria-label="${f.n} : ${st}" title="${ok ? st : "exclu par ton régime"}"><span class="ic" aria-hidden="true">${p === 2 ? "★" : p === 1 ? "♥" : p === -1 ? "✕" : "+"}</span>${f.n}</button>`;
     }).join("")}</div></div>`;
   }).join("") || `<div class="card muted">Aucun aliment ne correspond.</div>`;
 }
@@ -1463,7 +1470,7 @@ document.addEventListener("click", e => {
   if (t.dataset.bset !== undefined) { setBudget(+t.dataset.bset, 0); return; }
   if (t.dataset.swap) { const [mi, ii] = t.dataset.swap.split(":").map(Number); swapItem(ui.day, mi, ii); lastSwapped = t.dataset.swap; renderRepas(); persist(); return; }
   if (t.dataset.regen) { regenMeal(ui.day, +t.dataset.regen); mealAnim = +t.dataset.regen; renderRepas(); persist(); toast("Nouveau repas proposé"); return; }
-  if (t.dataset.food) { const id = t.dataset.food, cur = state.prefs[id] || 0, nx = cur === 0 ? 1 : cur === 1 ? -1 : 0; if (nx) state.prefs[id] = nx; else delete state.prefs[id]; renderAliments(id); persist(); return; }
+  if (t.dataset.food) { const id = t.dataset.food, cur = state.prefs[id] || 0, nx = cur === 0 ? 1 : cur === 1 ? 2 : cur === 2 ? -1 : 0; if (nx) state.prefs[id] = nx; else delete state.prefs[id]; renderAliments(id); persist(); return; }
   if (t.dataset.goal) { state.profile.goal = t.dataset.goal; state.example = false; afterProfileChange(); toast(`Objectif : ${GOALS[t.dataset.goal].label.toLowerCase()}`); return; }
   if (t.dataset.delw) { state.weights = state.weights.filter(x => x.d !== t.dataset.delw); afterProfileChange(); return; }
   if (t.id === "regenWeek" || t.id === "regenFromPrefs" || t.id === "regenMobile") { generateWeek(); ui.day = todayIdx(); mealAnim = "all"; renderAll(); persist(); toast("Nouvelle semaine générée"); if (t.id === "regenFromPrefs") go("repas"); return; }
