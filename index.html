@@ -39,6 +39,14 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
+/* Écrans tactiles : la page défile dans une zone dédiée dont la barre de défilement est masquée */
+#scroller { display: contents; }
+@media (pointer: coarse) {
+  html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
+  #scroller { display: block; position: fixed; inset: 0; z-index: 2; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; scrollbar-width: none; -ms-overflow-style: none; }
+  #scroller::-webkit-scrollbar { display: none; -webkit-appearance: none; width: 0; height: 0; background: transparent; }
+  #v-repas > .row.spread { top: env(safe-area-inset-top, 0px); }
+}
 * { touch-action: manipulation; }
 #wForm { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; }
 #wForm label { min-width: 0; }
@@ -414,6 +422,7 @@ footer p { font-size: 12px; color: #6a6a6a; max-width: 72ch; }
   </div>
 </div>
 
+<div id="scroller">
 <div class="wrap">
   <header class="top">
     <div class="signature"><svg viewBox="0 0 16 16"><defs><linearGradient id="sigG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9a9a9a"/><stop offset="1" stop-color="#9a9a9a" stop-opacity=".1"/></linearGradient></defs><circle cx="8" cy="8" r="5.5" fill="none" stroke="url(#sigG)" stroke-width="2.6"/></svg><span id="goalLine">perte de poids</span></div>
@@ -585,6 +594,7 @@ footer p { font-size: 12px; color: #6a6a6a; max-width: 72ch; }
     <div class="eyebrow" style="text-transform:none">loss · by Yaity</div>
     <p>Estimations basées sur la formule de Mifflin-St Jeor et des valeurs nutritionnelles moyennes (table Ciqual). Un point de départ, pas un avis médical : en cas de problème de santé, de grossesse ou d'antécédents de troubles alimentaires, demande conseil à un médecin ou à un diététicien.</p>
   </footer>
+</div>
 </div>
 <div class="toast" id="toast" role="status"></div>
 
@@ -1441,7 +1451,12 @@ function setView(v, force) {
     if (v === "suivi") renderSuivi();
   }
 }
-function go(v) { if (location.hash.slice(1) !== v) location.hash = v; else setView(v); window.scrollTo({top: 0, behavior: "smooth"}); }
+function scrollTop() {
+  const s = document.getElementById("scroller");
+  if (s && getComputedStyle(s).display === "block") s.scrollTo({top: 0, behavior: "smooth"});
+  else window.scrollTo({top: 0, behavior: "smooth"});
+}
+function go(v) { if (location.hash.slice(1) !== v) location.hash = v; else setView(v); scrollTop(); }
 window.addEventListener("hashchange", () => { setView(location.hash.slice(1)); });
 let tilted = null;
 const fine = matchMedia("(hover: hover) and (pointer: fine)").matches && !matchMedia("(prefers-reduced-motion: reduce)").matches;
