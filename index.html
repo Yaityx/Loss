@@ -234,12 +234,19 @@ button.icon.spin svg { animation: spin .5s var(--ease); }
 .shop { columns: 3 230px; column-gap: 28px; }
 .shop section { break-inside: avoid; margin-bottom: 18px; }
 .shop h3 { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
-.shop label { display: flex; gap: 10px; align-items: center; padding: 5px 0; font-size: 14px; cursor: pointer; border-bottom: 1px solid var(--line); }
-.shop label .q { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 13px; }
-.shop input { appearance: none; width: 16px; height: 16px; border: 1px solid rgba(255,255,255,.35); border-radius: 50%; margin: 0; flex: none; display: grid; place-items: center; cursor: pointer; transition: background .2s; }
-.shop input:checked { background: var(--ink); border-color: var(--ink); }
-.shop input:checked::after { content: "✓"; color: #0a0a0a; font-size: 10px; font-weight: 900; }
-.shop label:has(input:checked) span.n { color: var(--faint); text-decoration: line-through; }
+.shop label { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 9px 0; font-size: 14.5px; cursor: pointer; border-bottom: 1px solid var(--line); transition: opacity .3s; }
+.shop label .n { min-width: 0; overflow-wrap: anywhere; transition: color .3s; }
+.shop label .q { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 13px; line-height: 1.3; }
+.shop label .q small { display: block; font-size: 11.5px; color: var(--faint); }
+/* bulle à cocher : un vrai cercle, coche dessinée et centrée */
+.shop input[type="checkbox"] { -webkit-appearance: none; appearance: none; box-sizing: border-box; width: 24px; height: 24px; min-width: 24px; min-height: 24px; max-width: 24px; padding: 0; margin: 0; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.4); background: rgba(255,255,255,.04) center / 14px 14px no-repeat; cursor: pointer; transition: background-color .25s, border-color .25s, transform .25s cubic-bezier(.34,1.6,.5,1); }
+.shop input[type="checkbox"]:checked { background-color: #bfe9c8; border-color: #bfe9c8; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230a0a0a' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E"); transform: scale(1.08); }
+.shop input[type="checkbox"]:focus { box-shadow: none; }
+.shop input[type="checkbox"]:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.shop label.done .n { color: var(--faint); text-decoration: line-through; text-decoration-color: rgba(255,255,255,.25); }
+.shop label.done .q { opacity: .5; }
+.shopbar { display: grid; gap: 8px; }
+.shopbar .t { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 /* aliments */
 .chips { display: flex; flex-wrap: wrap; gap: 7px; }
@@ -375,7 +382,7 @@ footer p { font-size: 12px; color: #6a6a6a; max-width: 72ch; }
   .meal li { padding: 4px 0; }
   button.icon { width: 40px; height: 40px; }
   .shop { columns: 1; }
-  .shop label { padding: 10px 0; }
+  .shop label { padding: 11px 0; }
   .chip { padding: 9px 14px; }
   #v-aliments > .row.spread > .row { width: 100%; }
   #search { flex: 1; width: auto !important; }
@@ -497,7 +504,8 @@ footer p { font-size: 12px; color: #6a6a6a; max-width: 72ch; }
       <div class="card" id="budgetBox"></div>
     </div>
     <div class="card">
-      <div class="row spread"><h3 id="shopTotal">Total</h3><button id="copyShop">Copier la liste</button></div>
+      <div class="row spread"><h3 id="shopTotal">Total</h3><div class="row"><button class="ghost" id="uncheckAll">Tout décocher</button><button id="copyShop">Copier la liste</button></div></div>
+      <div class="shopbar"><div class="t"><span id="shopDone">0 article dans le panier</span><span id="shopLeft"></span></div><div class="bar"><div class="track"><div class="fill" id="shopFill" style="width:0%"></div></div></div></div>
       <div class="shop" id="shop"></div>
     </div>
   </section>
@@ -928,6 +936,7 @@ function generateWeek() {
   poolLimit = pick.k; priceBias = pick.k >= 99 ? 0.8 : 3; genScale = null;
 }
 function generateWeekOnce() {
+  state.shopChecked = {};
   const T = computeTargets(), usage = {};
   const plan = PLANS[state.profile.meals] || PLANS[4];
   const days = [];
@@ -1260,7 +1269,14 @@ function renderRepas() {
 }
 
 let shopText = "";
-const checked = new Set();
+const shopChecked = () => (state.shopChecked = state.shopChecked || {});
+function updateShopProgress() {
+  const boxes = [...document.querySelectorAll("#shop input[data-check]")], done = boxes.filter(b => b.checked).length;
+  const el = $("#shopDone"); if (!el) return;
+  el.textContent = `${done} article${done > 1 ? "s" : ""} dans le panier`;
+  $("#shopLeft").textContent = boxes.length ? `${boxes.length - done} restant${boxes.length - done > 1 ? "s" : ""}` : "";
+  $("#shopFill").style.width = (boxes.length ? done / boxes.length * 100 : 0) + "%";
+}
 function renderShop() {
   ensurePlan();
   const agg = {};
@@ -1274,7 +1290,8 @@ function renderShop() {
       const f = F[id], g = agg[id] * (f.raw || 1), eur = g / 1000 * f.eur;
       const q = f.unit ? `${Math.round(agg[id] / f.unit)} ${f.unitName}s` : g >= 1000 ? `${fmt(Math.ceil(g/50)*50/1000, 2)} kg` : `${Math.ceil(g/10)*10} g`;
       lines.push(`- ${f.n} : ${q} (~${fmt(eur, 2)} €)`);
-      return `<label><input type="checkbox" data-check="${id}" ${checked.has(id) ? "checked" : ""}><span class="n">${f.n}</span><span class="q">${q} · ${fmt(eur, 2)} €</span></label>`;
+      const on = !!shopChecked()[id];
+      return `<label class="${on ? "done" : ""}"><input type="checkbox" data-check="${id}" ${on ? "checked" : ""} aria-label="${f.n}"><span class="n">${f.n}</span><span class="q">${q}<small>${fmt(eur, 2)} €</small></span></label>`;
     }).join("");
     lines.push("");
     return `<section><h3>${label}</h3>${rows}</section>`;
@@ -1284,6 +1301,7 @@ function renderShop() {
   shopText = lines.join("\n").trim();
   $("#shop").innerHTML = html;
   $("#shopTotal").textContent = `Total estimé : ${fmt(cost, 2)} €`;
+  updateShopProgress();
   const over = budget && cost > budget;
   syncBudget();
   $("#budgetBox").innerHTML = !budget
@@ -1474,7 +1492,12 @@ document.addEventListener("pointerdown", e => {
   b.classList.remove("jelly"); void b.offsetWidth; b.classList.add("jelly");
 });
 document.addEventListener("change", e => {
-  if (e.target.dataset.check) { e.target.checked ? checked.add(e.target.dataset.check) : checked.delete(e.target.dataset.check); }
+  if (e.target.dataset.check) {
+    const id = e.target.dataset.check;
+    if (e.target.checked) shopChecked()[id] = true; else delete shopChecked()[id];
+    e.target.closest("label").classList.toggle("done", e.target.checked);
+    updateShopProgress(); persist();
+  }
 });
 document.addEventListener("click", e => {
   const t = e.target.closest("button, a");
@@ -1491,6 +1514,7 @@ document.addEventListener("click", e => {
   if (t.id === "regenWeek" || t.id === "regenFromPrefs" || t.id === "regenMobile") { generateWeek(); ui.day = todayIdx(); mealAnim = "all"; renderAll(); persist(); toast("Nouvelle semaine générée"); if (t.id === "regenFromPrefs") go("repas"); return; }
   if (t.id === "applyAdj") { state.adj = Math.max(-600, Math.min(600, (state.adj || 0) + Number(t.dataset.delta))); afterProfileChange(); toast("Plan ajusté, portions recalculées"); return; }
   if (t.id === "resetAdj") { state.adj = 0; afterProfileChange(); return; }
+  if (t.id === "uncheckAll") { state.shopChecked = {}; renderShop(); persist(); return; }
   if (t.id === "copyShop") {
     try { navigator.clipboard.writeText(shopText).then(() => toast("Liste copiée"), () => toast("Le navigateur a refusé la copie")); } catch (err) { toast("Copie impossible ici"); }
   }
