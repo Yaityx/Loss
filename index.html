@@ -39,6 +39,13 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
+* { touch-action: manipulation; }
+#wForm { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+#wForm label { min-width: 0; }
+#wForm input { min-width: 0; width: 100%; min-height: 46px; }
+input[type="date"] { -webkit-appearance: none; appearance: none; display: block; line-height: 1.2; text-align: left; }
+input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+@media (max-width: 640px) { #wForm { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } #wForm button { grid-column: 1 / -1; } }
 html { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 button, a, input, select, label, .card, .chip { touch-action: manipulation; }
 body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.55; min-height: 100vh; overflow-x: hidden; }
@@ -648,10 +655,38 @@ const RAW = [
   ["noix","Noix","gras",690,15,7,65,["pdF","colF"],{min:0,max:30}],
   ["cacahuete","Beurre de cacahuète","gras",600,25,15,50,["pdF","colF"],{min:0,max:35}],
   ["chia","Graines de chia","gras",490,17,8,31,["pdF"],{min:0,max:25}],
-  ["chocolat","Chocolat noir 70 %","douceur",570,8,34,42,["colF"],{min:0,max:25}]
+  ["chocolat","Chocolat noir 70 %","douceur",570,8,34,42,["colF"],{min:0,max:25}],
+  ["cuisse","Haut de cuisse de poulet (sans peau)","viande",180,25,0,9,["mP"],{min:60,max:300,raw:1.35,meat:1}],
+  ["jdinde","Blanc de dinde (tranches)","viande",105,20,1,2.5,["mP","colP"],{min:40,max:200,meat:1}],
+  ["colin","Colin / merlu","poisson",95,20,0,1.2,["mP"],{min:100,max:330,raw:1.25,fish:1}],
+  ["maquereau","Maquereau","poisson",230,21,0,16,["mP"],{min:60,max:180,raw:1.2,fish:1}],
+  ["truite","Truite","poisson",160,23,0,7,["mP"],{min:80,max:250,raw:1.2,fish:1}],
+  ["edamame","Edamame","vegprot",120,11,9,5,["mP"],{min:80,max:250}],
+  ["hrouges","Haricots rouges","feculent",125,8.5,17,0.5,["mC","mP"],{min:0,max:450,raw:0.4}],
+  ["poiscasses","Pois cassés","feculent",120,8,21,0.4,["mC","mP"],{min:0,max:450,raw:0.45}],
+  ["ble","Blé tendre (type Ebly)","feculent",140,5,28,1,["mC"],{min:0,max:500,raw:0.4,glu:1}],
+  ["gnocchi","Gnocchis","feculent",150,3.5,33,0.3,["mC"],{min:0,max:400,glu:1}],
+  ["pateslc","Pâtes de lentilles corail","feculent",140,10,23,1,["mC"],{min:0,max:450,raw:0.45}],
+  ["paindemie","Pain de mie complet","petitdej",250,9,43,4,["pdC","colC","sideC"],{min:0,max:150,glu:1}],
+  ["fb3","Fromage blanc 3 %","laitier",75,7.5,3.8,3.2,["pdP","colP"],{min:70,max:400,animal:1,lac:1}],
+  ["ynature","Yaourt nature","laitier",60,4.5,5.5,1.5,["pdP","colP"],{min:125,max:375,animal:1,lac:1}],
+  ["poire","Poire","fruit",55,0.4,13,0.1,["fruit"],{def:150,unitName:"1 poire"}],
+  ["raisin","Raisin","fruit",70,0.7,16,0.2,["fruit"],{def:150}],
+  ["clementine","Clémentines","fruit",47,0.8,10,0.2,["fruit"],{def:150,unitName:"2 clémentines"}],
+  ["ananas","Ananas","fruit",50,0.5,11,0.2,["fruit"],{def:150}],
+  ["compote","Compote sans sucre ajouté","fruit",50,0.3,11,0.1,["fruit"],{def:100,unitName:"1 pot"}],
+  ["ppois","Petits pois","legume",70,5,10,0.4,["veg"],{def:150}],
+  ["poireaux","Poireaux","legume",30,1.5,4.5,0.3,["veg"],{def:200}],
+  ["concombre","Concombre","legume",12,0.6,2,0.1,["veg"],{def:150}],
+  ["chou","Chou","legume",25,1.4,4,0.2,["veg"],{def:200}],
+  ["butternut","Courge butternut","legume",40,1,9,0.1,["veg"],{def:200}],
+  ["feta","Feta","gras",260,17,1,21,["mF"],{min:0,max:50,animal:1,lac:1}],
+  ["parmesan","Parmesan","gras",400,35,0,28,["mF"],{min:0,max:25,animal:1}],
+  ["noisettes","Noisettes","gras",650,15,7,61,["pdF","colF"],{min:0,max:30}],
+  ["cajou","Noix de cajou","gras",580,18,27,46,["pdF","colF"],{min:0,max:30}],
 ];
 const FOODS = RAW.map(([id,n,cat,k,p,c,f,roles,o]) => Object.assign({id,n,cat,k,p,c,f,roles,min:0,max:300},o));
-const PRICES = {"poulet": 11, "dinde": 11, "boeuf5": 13, "rumsteck": 22, "porc": 14, "jambon": 14, "saumon": 22, "cabillaud": 20, "thon": 14, "crevettes": 20, "sardines": 12, "oeufs": 5.5, "skyr": 4, "fblanc": 2.5, "ygrec": 4.5, "cottage": 6, "whey": 25, "tofu": 9, "tempeh": 18, "seitan": 15, "ysoja": 3.5, "protveg": 25, "riz": 2.5, "rizc": 3, "pates": 1.8, "patesc": 2.5, "quinoa": 7, "patated": 3, "pdt": 1.5, "semoule": 2, "boulgour": 3, "lentilles": 3, "poischiches": 3.5, "avoine": 2, "painc": 4.5, "muesli": 5, "galettes": 8, "banane": 2, "pomme": 2.5, "frouges": 9, "kiwi": 4, "orange": 2.5, "mangue": 5, "brocoli": 3.5, "hverts": 3, "courgette": 2.5, "epinards": 3, "carottes": 1.5, "poivrons": 4, "tomates": 3, "champignons": 5, "choufleur": 3, "salade": 5, "aubergine": 3.5, "huile": 9, "avocat": 6, "emmental": 10, "amandes": 15, "noix": 18, "cacahuete": 9, "chia": 12, "chocolat": 12}; // € par kg acheté (prix moyens en grande surface, marques distributeur)
+const PRICES = {"poulet": 11, "dinde": 11, "boeuf5": 13, "rumsteck": 22, "porc": 14, "jambon": 14, "saumon": 22, "cabillaud": 20, "thon": 14, "crevettes": 20, "sardines": 12, "oeufs": 5.5, "skyr": 4, "fblanc": 2.5, "ygrec": 4.5, "cottage": 6, "whey": 25, "tofu": 9, "tempeh": 18, "seitan": 15, "ysoja": 3.5, "protveg": 25, "riz": 2.5, "rizc": 3, "pates": 1.8, "patesc": 2.5, "quinoa": 7, "patated": 3, "pdt": 1.5, "semoule": 2, "boulgour": 3, "lentilles": 3, "poischiches": 3.5, "avoine": 2, "painc": 4.5, "muesli": 5, "galettes": 8, "banane": 2, "pomme": 2.5, "frouges": 9, "kiwi": 4, "orange": 2.5, "mangue": 5, "brocoli": 3.5, "hverts": 3, "courgette": 2.5, "epinards": 3, "carottes": 1.5, "poivrons": 4, "tomates": 3, "champignons": 5, "choufleur": 3, "salade": 5, "aubergine": 3.5, "huile": 9, "avocat": 6, "emmental": 10, "amandes": 15, "noix": 18, "cacahuete": 9, "chia": 12, "chocolat": 12, "cuisse": 7, "jdinde": 15, "colin": 12, "maquereau": 11, "truite": 16, "edamame": 8, "hrouges": 3, "poiscasses": 2.5, "ble": 3.5, "gnocchi": 3.5, "pateslc": 6, "paindemie": 3.5, "fb3": 2.8, "ynature": 2, "poire": 2.8, "raisin": 4, "clementine": 3, "ananas": 3, "compote": 3.5, "ppois": 3, "poireaux": 2.5, "concombre": 2, "chou": 1.8, "butternut": 2, "feta": 11, "parmesan": 20, "noisettes": 16, "cajou": 16}; // € par kg acheté (prix moyens en grande surface, marques distributeur)
 FOODS.forEach(f => f.eur = PRICES[f.id] || 5);
 const F = Object.fromEntries(FOODS.map(f => [f.id, f]));
 
@@ -1495,6 +1530,23 @@ $("#search").addEventListener("input", e => { ui.search = e.target.value; render
 $("#filterPref").addEventListener("change", e => { ui.filter = e.target.value; renderAliments(); });
 let rz = null; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { moveIndicator(); if (ui.view === "suivi") drawChart($("#chart")); if (ui.view === "accueil" && sortedWeights().length > 1) drawChart($("#spark"), true); }, 150); });
 
+
+/* iOS : pas de zoom au double-tap, même sur du texte ; le 2e tap reste pris en compte */
+(function () {
+  let last = 0;
+  document.addEventListener("touchend", e => {
+    const now = Date.now();
+    if (now - last < 350 && e.changedTouches.length === 1 && e.touches.length === 0) {
+      e.preventDefault();
+      const t = e.target.closest && e.target.closest("button, a, label, input, select");
+      if (t) {
+        if (t.matches("input:not([type=checkbox]):not([type=radio]), select")) t.focus();
+        else t.click();
+      }
+    }
+    last = now;
+  }, { passive: false });
+})();
 /* ---------- Démarrage ---------- */
 $("#introLogo").innerHTML = LOGO(true);
 $("#headLogo").innerHTML = LOGO(false);
