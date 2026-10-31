@@ -218,6 +218,8 @@ button.icon.spin svg { animation: spin .5s var(--ease); }
 .meals { display: grid; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); gap: 14px; }
 .meal.enter { animation: rise .6s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 70ms); }
 .meal header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.mt { font-family: var(--display); font-weight: 700; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.meal header h3 { font-size: 16px; line-height: 1.25; }
 .meal .kc { font-family: var(--display); font-weight: 800; font-variant-numeric: tabular-nums; }
 .meal .kc small { color: var(--muted); font-weight: 600; font-size: 11px; margin-left: 3px; }
 .meal ul { list-style: none; padding: 0; margin: 0; display: grid; }
@@ -811,7 +813,7 @@ function pickFood(role, usage, dayUsed, exclude) {
   for (let i = 0; i < pool.length; i++) { r -= wts[i]; if (r <= 0) return pool[i]; }
   return pool[pool.length-1];
 }
-function buildMeal(type, usage, dayUsed) {
+function buildMealLoose(type, usage, dayUsed) {
   const items = [];
   const big = ["2", "2c"].includes(String(state.profile.meals)) && (type === "dej" || type === "din");
   for (const role of MEAL_TYPES[type].roles.concat(big ? ["sideC"] : [])) {
@@ -821,6 +823,122 @@ function buildMeal(type, usage, dayUsed) {
     items.push({id:f.id, role, g:0});
   }
   return {type, items};
+}
+
+/* ---------- Plats : des repas cohérents ----------
+   Chaque plat liste, pour chaque rôle, les seuls ingrédients qui vont avec.
+   [rôle, [ingrédients possibles], obligatoire]. Les quantités sont ensuite calculées pour tes objectifs. */
+const DISHES = [
+  // Midi et soir : viandes
+  {id:"pcurry", t:"m", n:"Poulet au curry, {mC} et {veg}", s:[["mP",["poulet","cuisse"],1],["mC",["riz","rizc"],1],["veg",["courgette","epinards","choufleur"],1],["mF",["huile"],0]]},
+  {id:"proti", t:"m", n:"Poulet rôti, {mC} et {veg}", s:[["mP",["poulet","cuisse"],1],["mC",["pdt","patated"],1],["veg",["hverts","brocoli"],1],["mF",["huile"],0]]},
+  {id:"wokdinde", t:"m", n:"Wok de volaille, {mC} et {veg}", s:[["mP",["dinde","poulet"],1],["mC",["riz","rizc"],1],["veg",["poivrons","brocoli","carottes"],1],["mF",["huile"],0]]},
+  {id:"bolo", t:"m", n:"Pâtes à la bolognaise", s:[["mP",["boeuf5"],1],["mC",["pates","patesc"],1],["veg",["tomates"],1],["mF",["parmesan","huile"],0]]},
+  {id:"steak", t:"m", n:"Steak, {mC} et {veg}", s:[["mP",["boeuf5","rumsteck"],1],["mC",["pdt","patated"],1],["veg",["salade","hverts"],1],["mF",["huile"],0]]},
+  {id:"chiliCarne", t:"m", n:"Chili con carne et riz", s:[["mP",["boeuf5"],1],["mC",["riz"],1],["veg",["poivrons","tomates"],1],["mF",["huile","avocat"],0]]},
+  {id:"porcsemoule", t:"m", n:"Filet mignon, {mC} et {veg}", s:[["mP",["porc"],1],["mC",["semoule","boulgour"],1],["veg",["carottes","courgette"],1],["mF",["huile"],0]]},
+  {id:"couscous", t:"m", n:"Couscous au poulet", s:[["mP",["poulet","cuisse"],1],["mC",["semoule"],1],["veg",["courgette","carottes"],1],["mF",["huile"],0]]},
+  {id:"dindegnocchi", t:"m", n:"Escalope de dinde, {mC} et champignons", s:[["mP",["dinde"],1],["mC",["gnocchi","pates"],1],["veg",["champignons"],1],["mF",["parmesan","huile"],0]]},
+  {id:"saladeble", t:"m", n:"Salade de {mC}, {mP} et crudités", s:[["mP",["jambon","jdinde"],1],["mC",["ble","pates"],1],["veg",["tomates","concombre","salade"],1],["mF",["huile","emmental"],0]]},
+  {id:"carbo", t:"m", n:"Pâtes façon carbonara légère", s:[["mP",["jdinde","jambon"],1],["mC",["pates","patesc"],1],["veg",["champignons","courgette"],1],["mF",["parmesan"],0]]},
+  // Midi et soir : œufs
+  {id:"omelette", t:"m", n:"Omelette, pommes de terre et {veg}", s:[["mP",["oeufs"],1],["mC",["pdt"],1],["veg",["salade","champignons","poivrons"],1],["mF",["huile","emmental"],0]]},
+  {id:"cantonais", t:"m", n:"Riz cantonais aux œufs", s:[["mP",["oeufs"],1],["mC",["riz"],1],["veg",["ppois","carottes"],1],["mF",["huile"],0]]},
+  // Midi et soir : poissons
+  {id:"saumonriz", t:"m", n:"{mP}, {mC} et {veg}", s:[["mP",["saumon","truite"],1],["mC",["riz","rizc","quinoa"],1],["veg",["brocoli","epinards","hverts"],1],["mF",["huile"],0]]},
+  {id:"poissonblanc", t:"m", n:"{mP}, {mC} et {veg}", s:[["mP",["cabillaud","colin"],1],["mC",["pdt","patated"],1],["veg",["hverts","epinards","poireaux"],1],["mF",["huile"],0]]},
+  {id:"patesthon", t:"m", n:"Pâtes au thon et à la tomate", s:[["mP",["thon"],1],["mC",["pates","patesc"],1],["veg",["tomates"],1],["mF",["huile"],0]]},
+  {id:"quinoathon", t:"m", n:"Salade de {mC}, {mP} et crudités", s:[["mP",["thon","crevettes"],1],["mC",["quinoa","ble"],1],["veg",["concombre","tomates","salade"],1],["mF",["huile","avocat"],0]]},
+  {id:"crevettes", t:"m", n:"Crevettes sautées, riz et {veg}", s:[["mP",["crevettes"],1],["mC",["riz"],1],["veg",["poivrons","courgette"],1],["mF",["huile"],0]]},
+  {id:"maquereau", t:"m", n:"{mP}, pommes de terre et {veg}", s:[["mP",["maquereau","sardines"],1],["mC",["pdt"],1],["veg",["salade","concombre"],1]]},
+  {id:"colinpoireaux", t:"m", n:"{mP}, {mC} et {veg}", s:[["mP",["colin","cabillaud"],1],["mC",["boulgour","semoule","riz"],1],["veg",["poireaux","carottes"],1],["mF",["huile"],0]]},
+  {id:"bowlsaumon", t:"m", n:"Bowl saumon, riz et {veg}", s:[["mP",["saumon"],1],["mC",["riz"],1],["veg",["concombre","carottes"],1],["mF",["avocat"],0]]},
+  // Midi et soir : végétarien / végétalien
+  {id:"chiliSin", t:"m", n:"Chili sin carne et {mC}", s:[["mP",["hrouges"],1,80,300],["mC",["riz","rizc"],1,80],["veg",["poivrons","tomates"],1],["mF",["avocat","huile"],0]]},
+  {id:"dahl", t:"m", n:"Dahl de lentilles, {mC} et {veg}", s:[["mP",["lentilles"],1,80,300],["mC",["riz"],1,80],["veg",["epinards","tomates","butternut"],1],["mF",["huile"],0]]},
+  {id:"currypc", t:"m", n:"Curry de pois chiches, {mC} et {veg}", s:[["mP",["poischiches"],1,80,300],["mC",["riz","quinoa"],1,80],["veg",["epinards","choufleur","butternut"],1],["mF",["huile"],0]]},
+  {id:"tofuwok", t:"m", n:"{mP} sauté, {mC} et {veg}", s:[["mP",["tofu","tempeh"],1],["mC",["riz","rizc"],1],["veg",["brocoli","poivrons","chou"],1],["mF",["huile"],0]]},
+  {id:"saladelentilles", t:"m", n:"Salade de lentilles à la feta", s:[["mP",["lentilles"],1,80,300],["mC",["ble","quinoa"],0],["veg",["tomates","concombre"],1],["mF",["feta","huile"],0]]},
+  {id:"soupepc", t:"m", n:"Soupe de pois cassés aux {veg}", s:[["mP",["poiscasses"],1,100,350],["mC",["pdt"],0],["veg",["carottes","poireaux"],1],["mF",["huile"],0]]},
+  {id:"pateslentilles", t:"m", n:"Pâtes de lentilles, {mP} et {veg}", s:[["mP",["edamame","tofu"],1],["mC",["pateslc"],1],["veg",["tomates","courgette"],1],["mF",["huile","parmesan"],0]]},
+  {id:"buddha", t:"m", n:"Buddha bowl {mP}, {mC} et {veg}", s:[["mP",["edamame","tofu"],1],["mC",["quinoa","riz"],1],["veg",["carottes","chou","concombre"],1],["mF",["avocat","huile"],0]]},
+  {id:"seitan", t:"m", n:"Seitan, {mC} et {veg}", s:[["mP",["seitan"],1],["mC",["pdt","patated"],1],["veg",["hverts","brocoli"],1],["mF",["huile"],0]]},
+  {id:"oeufsbutternut", t:"m", n:"Œufs, purée de butternut et {mC}", s:[["mP",["oeufs"],1],["mC",["quinoa","pdt"],1],["veg",["butternut"],1],["mF",["huile","parmesan"],0]]},
+  // Petits-déjeuners
+  {id:"porridge", t:"pd", n:"Porridge aux fruits", s:[["pdC",["avoine"],1],["pdP",["skyr","ygrec","whey","protveg","ysoja","fb3"],1],["fruit",["banane","frouges","pomme","poire"],1],["pdF",["cacahuete","amandes","noix","chia","noisettes"],0]]},
+  {id:"bowlskyr", t:"pd", n:"Bowl {pdP}, {pdC} et {fruit}", s:[["pdP",["skyr","fblanc","fb3","ygrec","ysoja"],1],["pdC",["muesli","avoine"],1],["fruit",["frouges","kiwi","mangue","ananas","banane"],1],["pdF",["amandes","noix","chia","noisettes","cajou"],0]]},
+  {id:"tartinesoeufs", t:"pd", n:"Tartines de {pdC} et œufs", s:[["pdP",["oeufs"],1],["pdC",["painc","paindemie"],1],["fruit",["orange","kiwi","clementine","pomme"],1]]},
+  {id:"tartinesfb", t:"pd", n:"Tartines de {pdC} et {pdP}", s:[["pdP",["fblanc","fb3","cottage","skyr"],1],["pdC",["painc","paindemie"],1],["fruit",["banane","pomme"],1],["pdF",["cacahuete"],0]]},
+  {id:"galettescottage", t:"pd", n:"Galettes de riz, {pdP} et {fruit}", s:[["pdP",["cottage","fblanc","ysoja"],1],["pdC",["galettes"],1],["fruit",["poire","raisin","compote"],1],["pdF",["amandes","cajou"],0]]},
+  {id:"shakerflocons", t:"pd", n:"Shaker protéiné et flocons d'avoine", s:[["pdP",["whey","protveg"],1],["pdC",["avoine"],1],["fruit",["banane"],1],["pdF",["cacahuete","amandes"],0]]},
+  {id:"yaourtmuesli", t:"pd", n:"{pdP}, muesli et {fruit}", s:[["pdP",["ynature","ygrec","ysoja"],1],["pdC",["muesli"],1],["fruit",["compote","pomme"],1],["pdF",["noisettes","noix"],0]]},
+  // Collations
+  {id:"skyrfruit", t:"col", n:"{colP} et {fruit}", s:[["colP",["skyr","fblanc","fb3","ygrec","ysoja"],1],["fruit",["pomme","poire","frouges","kiwi","clementine","banane"],1],["colF",["amandes","noix","noisettes","cajou"],0]]},
+  {id:"tartinedinde", t:"col", n:"{colP} sur tartine de {colC}", s:[["colP",["jdinde","jambon"],1],["colC",["painc","paindemie"],1],["fruit",["pomme","clementine"],1]]},
+  {id:"shakerbanane", t:"col", n:"Shaker protéiné et banane", s:[["colP",["whey","protveg"],1],["fruit",["banane"],1],["colC",["galettes"],0],["colF",["cacahuete"],0]]},
+  {id:"cottagegalettes", t:"col", n:"{colP} et galettes de riz", s:[["colP",["cottage","fblanc"],1],["colC",["galettes"],1],["fruit",["raisin","poire"],1]]},
+  {id:"fbcompote", t:"col", n:"Fromage blanc et {fruit}", s:[["colP",["fblanc","fb3"],1],["fruit",["compote","frouges"],1],["colF",["chocolat"],0]]},
+  {id:"yaourtnoix", t:"col", n:"{colP} et {fruit}", s:[["colP",["ynature","ygrec","ysoja"],1],["fruit",["kiwi","ananas","mangue"],1],["colF",["noix","cajou"],0]]}
+];
+const DISH = Object.fromEntries(DISHES.map(d => [d.id, d]));
+
+const SHORT = {tofu:"tofu", poulet:"poulet", cuisse:"poulet", dinde:"dinde", boeuf5:"bœuf haché", jambon:"jambon", jdinde:"dinde", saumon:"saumon", truite:"truite", cabillaud:"cabillaud", colin:"colin", thon:"thon", crevettes:"crevettes", maquereau:"maquereau", sardines:"sardines", riz:"riz basmati", rizc:"riz complet", ble:"blé", pates:"pâtes", patesc:"pâtes complètes", pdt:"pommes de terre", patated:"patate douce", gnocchi:"gnocchis", hverts:"haricots verts", ppois:"petits pois", choufleur:"chou-fleur", salade:"salade verte", butternut:"courge butternut", skyr:"skyr", fblanc:"fromage blanc", fb3:"fromage blanc", ygrec:"yaourt grec", ysoja:"yaourt au soja", ynature:"yaourt", cottage:"cottage cheese", whey:"whey", protveg:"protéine végétale", avoine:"flocons d'avoine", muesli:"muesli", painc:"pain complet", paindemie:"pain de mie", galettes:"galettes de riz", frouges:"fruits rouges", clementine:"clémentines", compote:"compote"};
+const shortName = id => SHORT[id] || F[id].n.toLowerCase();
+// nom du plat adapté aux ingrédients réellement choisis
+function dishName(meal) {
+  const D = meal && DISH[meal.dish]; if (!D) return "";
+  const pick = role => { const it = meal.items.find(x => x.role === role && x.g > 0); return it ? shortName(it.id) : null; };
+  let s = D.n.replace(/(,\s*|\s+et\s+|\s+de\s+|\s+aux?\s+|\s+)?\{(\w+)\}/g, (m, sep, role) => { const v = pick(role); return v ? (sep || "") + v : ""; });
+  s = s.replace(/\s*,\s*(et\s+)/g, " $1").replace(/,\s*,/g, ",").replace(/\s+(et|de|aux?)\s*$/, "").replace(/^[\s,]+|[\s,]+$/g, "").replace(/\s{2,}/g, " ").replace(/\s+,/g, ",");
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+const dishType = type => (type === "dej" || type === "din") ? "m" : type;
+const okFood = id => F[id] && allowed(F[id]) && state.prefs[id] !== -1;
+function prefWeight(id) { return state.prefs[id] === 2 ? 6 : state.prefs[id] === 1 ? 3 : 1; }
+function dishOptions(d, slot) { return slot[1].filter(okFood); }
+function dishPossible(d) { return d.s.every(sl => !sl[2] || dishOptions(d, sl).length); }
+function dishCost(d) {
+  let c = 0;
+  d.s.forEach(sl => { if (!sl[2]) return; const o = dishOptions(d, sl); if (o.length) c += Math.min(...o.map(id => unitCost(F[id], sl[0]))); });
+  return c || 1;
+}
+// choisit un ingrédient pour un emplacement du plat : goûts, prix, variété
+function pickInSlot(slot, usage, dayUsed, exclude) {
+  const opts = slot[1].filter(id => okFood(id) && id !== exclude);
+  if (!opts.length) return null;
+  const cheapest = Math.min(...opts.map(id => unitCost(F[id], slot[0])));
+  const w = opts.map(id => prefWeight(id) * Math.pow(0.5, usage[id] || 0) * (dayUsed.has(id) ? 0.15 : 1) * Math.pow(cheapest / unitCost(F[id], slot[0]), priceBias));
+  let r = Math.random() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < opts.length; i++) { r -= w[i]; if (r <= 0) return F[opts[i]]; }
+  return F[opts[opts.length - 1]];
+}
+function buildMeal(type, usage, dayUsed) {
+  const t = dishType(type);
+  let pool = DISHES.filter(d => d.t === t && dishPossible(d));
+  if (!pool.length) return buildMealLoose(type, usage, dayUsed);
+  if (poolLimit < 99) pool = pool.sort((a, b) => dishCost(a) - dishCost(b)).slice(0, Math.max(t === "m" ? 6 : 3, poolLimit + 2));
+  const cheapest = Math.min(...pool.map(dishCost));
+  const dayDishes = dayUsed.dishes || (dayUsed.dishes = new Set());
+  const w = pool.map(d => {
+    const fav = Math.max(...d.s.filter(sl => sl[2]).map(sl => Math.max(...dishOptions(d, sl).map(prefWeight))));
+    return fav * Math.pow(t === "m" ? 0.2 : 0.45, usage["dish:" + d.id] || 0) * (dayDishes.has(d.id) ? 0.02 : 1) * Math.pow(cheapest / dishCost(d), priceBias);
+  });
+  let r = Math.random() * w.reduce((a, b) => a + b, 0), d = pool[pool.length - 1];
+  for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r <= 0) { d = pool[i]; break; } }
+  usage["dish:" + d.id] = (usage["dish:" + d.id] || 0) + 1; dayDishes.add(d.id);
+  const items = [];
+  const big = ["2", "2c"].includes(String(state.profile.meals)) && t === "m";
+  const slots = d.s.concat(big ? [["sideC", ["painc", "paindemie"], 0]] : []);
+  for (const sl of slots) {
+    const f = pickInSlot(sl, usage, dayUsed);
+    if (!f) continue;
+    usage[f.id] = (usage[f.id] || 0) + 1; dayUsed.add(f.id);
+    const it = {id: f.id, role: sl[0], g: 0};
+    if (sl[3] != null) it.lo = sl[3];
+    if (sl[4] != null) it.hi = sl[4];
+    items.push(it);
+  }
+  return {type, dish: d.id, items};
 }
 
 /* ---------- Calcul des portions (moindres carrés bornés) ---------- */
@@ -866,13 +984,14 @@ function solveMeal(meal, tgt) {
     let worst = -1, worstAmt = 0, worstVal = 0;
     free.forEach((j,k) => {
       const f = F[vars[j].id];
-      const over = sol[k] < f.min ? f.min - sol[k] : sol[k] > f.max ? sol[k] - f.max : 0;
-      if (over > worstAmt) { worstAmt = over; worst = j; worstVal = sol[k] < f.min ? f.min : f.max; }
+      const lo = vars[j].lo ?? f.min, hi = Math.min(f.max, vars[j].hi ?? f.max);
+      const over = sol[k] < lo ? lo - sol[k] : sol[k] > hi ? sol[k] - hi : 0;
+      if (over > worstAmt) { worstAmt = over; worst = j; worstVal = sol[k] < lo ? lo : hi; }
     });
     if (worst < 0) { free.forEach((j,k) => x[j] = sol[k]); break; }
     x[worst] = worstVal;
   }
-  vars.forEach((it,j) => { const f = F[it.id]; it.g = roundGrams(f, Math.min(f.max, Math.max(f.min, x[j] ?? f.min))); });
+  vars.forEach((it,j) => { const f = F[it.id], lo = it.lo ?? f.min, hi = Math.min(f.max, it.hi ?? f.max); it.g = roundGrams(f, Math.min(hi, Math.max(lo, x[j] ?? lo))); if (it.lo && it.g < it.lo) it.g = r5(it.lo); });
 }
 function mealTotals(meal) {
   const t = {k:0,p:0,c:0,f:0};
@@ -960,8 +1079,10 @@ function regenMeal(dayIdx, mealIdx) {
   priceBias = state.plan.bias || 0; poolLimit = state.plan.k || 99;
   const day = state.plan.days[dayIdx];
   const dayUsed = new Set(day.meals.flatMap((m,i) => i === mealIdx ? [] : m.items.map(it => it.id)));
+  dayUsed.dishes = new Set(day.meals.filter((m,i) => i !== mealIdx && m.dish).map(m => m.dish));
   const usage = {};
-  state.plan.days.forEach(d => d.meals.forEach(m => m.items.forEach(it => usage[it.id] = (usage[it.id]||0) + 1)));
+  state.plan.days.forEach(d => d.meals.forEach(m => { m.items.forEach(it => usage[it.id] = (usage[it.id]||0) + 1); if (m.dish) usage["dish:" + m.dish] = (usage["dish:" + m.dish] || 0) + 1; }));
+  if (day.meals[mealIdx].dish) usage["dish:" + day.meals[mealIdx].dish] += 3; // proposer un autre plat
   day.meals[mealIdx] = buildMeal(day.meals[mealIdx].type, usage, dayUsed);
   solveDay(day, computeTargets());
 }
@@ -971,9 +1092,16 @@ function swapItem(dayIdx, mealIdx, itemIdx) {
   const dayUsed = new Set(day.meals.flatMap(m => m.items.map(x => x.id)));
   const usage = {};
   state.plan.days.forEach(d => d.meals.forEach(m => m.items.forEach(x => usage[x.id] = (usage[x.id]||0) + 1)));
-  const f = pickFood(it.role, usage, dayUsed, it.id);
-  if (!f) { toast("Aucun autre aliment de ce type ne correspond à tes préférences."); return; }
-  meal.items[itemIdx] = {id:f.id, role:it.role, g:0};
+  let f;
+  if (meal.dish && DISH[meal.dish]) {
+    const slot = DISH[meal.dish].s.find(sl => sl[0] === it.role) || (it.role === "sideC" ? ["sideC", ["painc", "paindemie"], 0] : null);
+    f = slot ? pickInSlot(slot, usage, dayUsed, it.id) : null;
+    if (!f) { toast("Rien d'autre ne va avec ce plat : touche « Changer ce repas »"); return; }
+  } else {
+    f = pickFood(it.role, usage, dayUsed, it.id);
+    if (!f) { toast("Aucun autre aliment de ce type ne correspond à tes préférences."); return; }
+  }
+  meal.items[itemIdx] = Object.assign({id:f.id, role:it.role, g:0}, it.lo != null ? {lo: it.lo} : {}, it.hi != null ? {hi: it.hi} : {});
   solveDay(day, computeTargets());
 }
 /* ---------- Suivi : tendance et ajustement ---------- */
@@ -1158,7 +1286,7 @@ function LOGO(anim) {
   </svg>`;
 }
 
-function ensurePlan() { if (!state.plan || !state.plan.days || state.plan.days.length !== 7) generateWeek(); priceBias = state.plan.bias || 0; poolLimit = state.plan.k || 99; }
+function ensurePlan() { if (!state.plan || !state.plan.days || state.plan.days.length !== 7 || !state.plan.days.every(d => d.meals.every(m => m.dish))) generateWeek(); priceBias = state.plan.bias || 0; poolLimit = state.plan.k || 99; }
 function renderAll() { renderHeader(); renderHome(); renderRepas(); renderShop(); renderAliments(); renderSuivi(); renderProfil(); }
 
 /* compteurs animés */
@@ -1215,7 +1343,8 @@ function renderHome() {
   const d = todayIdx(), day = state.plan.days[d];
   $("#homeToday").innerHTML = `<div class="row spread"><h3>Aujourd'hui</h3><span class="pill neutral">${DAY_NAMES[d].toLowerCase()}</span></div>
     <div style="display:grid;gap:10px">${day.meals.map(m => { const t = mealTotals(m); return `<div style="display:grid;gap:2px;padding-bottom:9px;border-bottom:1px solid var(--line)">
-      <div class="row spread"><strong style="font-family:var(--display);font-size:13.5px">${MEAL_TYPES[m.type].label}</strong><span class="small muted num">${fmt(t.k)} kcal</span></div>
+      <div class="row spread"><span class="mt">${MEAL_TYPES[m.type].label}</span><span class="small muted num">${fmt(t.k)} kcal</span></div>
+      <strong style="font-family:var(--display);font-size:14px">${dishName(m) || MEAL_TYPES[m.type].label}</strong>
       <span class="small muted">${m.items.filter(it => it.g > 0).map(it => F[it.id].n).join(", ")}</span></div>`; }).join("")}</div>
     <div><button data-go="repas" data-today="1">Voir le détail</button></div>`;
   // budget
@@ -1258,7 +1387,7 @@ function renderRepas() {
     const t = mealTotals(m);
     const enter = mealAnim === "all" || mealAnim === mi;
     return `<article class="card meal${enter ? " enter" : ""}" style="--i:${mealAnim === "all" ? mi : 0}">
-      <header><h3>${MEAL_TYPES[m.type].label}</h3><span class="kc">${fmt(t.k)}<small>kcal</small></span></header>
+      <header><div style="display:grid;gap:2px"><span class="mt">${MEAL_TYPES[m.type].label}</span><h3>${dishName(m) || MEAL_TYPES[m.type].label}</h3></div><span class="kc">${fmt(t.k)}<small>kcal</small></span></header>
       <ul>${m.items.map((it, ii) => it.g <= 0 ? "" : `<li class="${lastSwapped === `${mi}:${ii}` ? "swapped" : ""}"><span>${F[it.id].n}${state.prefs[it.id] === 2 ? '<span class="lk love" title="Tu adores">★</span>' : state.prefs[it.id] === 1 ? '<span class="lk like" title="Tu aimes">♥</span>' : ""}</span><span class="g">${itemLabel(it)}</span><button class="icon" title="Remplacer ${F[it.id].n}" aria-label="Remplacer ${F[it.id].n}" data-swap="${mi}:${ii}">${SWAP_ICON}</button></li>`).join("")}</ul>
       <div class="macros"><span><span class="dot p"></span>${fmt(t.p)} g prot.</span><span><span class="dot c"></span>${fmt(t.c)} g gluc.</span><span><span class="dot f"></span>${fmt(t.f)} g lip.</span></div>
       <div><button class="ghost" data-regen="${mi}">↻ Changer ce repas</button></div>
